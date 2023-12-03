@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 from IPython import display
 
+# Interactive plot
+plt.ion()
+
 # Create 4 subplots for each metric
 fig, axes = plt.subplots(4, 1, figsize=(10, 12))
 
