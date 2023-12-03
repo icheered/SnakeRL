@@ -18,13 +18,14 @@ def main():
     done = False
 
     scores = []
-    mean_score = None
-    mean_scores = []
     total_score = 0
     record = 0
     
     rewards = []
     total_reward = 0
+    total_score_reward = 0
+    total_moving_to_apple = 0
+    total_survive_duration_reward = 0
     epsilons = []
     
     agent = Agent(game)
@@ -36,21 +37,27 @@ def main():
 
         # Get input
         # action = get_human_input(action)
-        action = agent.get_action(game, action)
+        action = agent.get_action(game)
         
         # Update game
         score, done = game.step(action)
 
         # Train agent
-        reward = agent.get_reward(score, old_score, done, game)
+        score_reward, moving_to_apple, survive_duration_reward = agent.get_reward(score, old_score, done, game)
+        reward = score_reward + moving_to_apple + survive_duration_reward
+        #print(f"reward: {reward}, score_reward: {score_reward}, moving_to_apple: {moving_to_apple}, survive_duration_reward: {survive_duration_reward}")
+        
+        
         total_reward += reward
+        total_score_reward += score_reward
+        total_moving_to_apple += moving_to_apple
+        total_survive_duration_reward += survive_duration_reward
         agent.train_short_memory(old_state, action, reward, game.get_state(), done)
         agent.remember(old_state, action, reward, game.get_state(), done)
 
         if done:
             # train long memory, plot result
-            print(f"####### GAME: {agent.n_games}. SCORE: {score} #######")
-            game.reset()
+            print(f"####### GAME: {agent.n_games}. SCORE: {score}. TOTAL REWARD: {total_reward} #######")
             agent.n_games += 1
             agent.train_long_memory()
 
@@ -60,21 +67,30 @@ def main():
 
             scores.append(score)
             total_score += score
-            mean_score = total_score / agent.n_games
-            mean_scores.append(mean_score)
 
-            rewards.append(total_reward) 
-            total_reward = 0
-
-            epsilons.append(agent.epsilon)
-            if(agent.n_games > 100 ):
-                plot_metrics(scores, mean_scores, rewards, epsilons)
+            rewards.append(
+                [total_reward, total_score_reward, total_moving_to_apple, total_survive_duration_reward]
+            ) 
             
+            epsilons.append(agent.epsilon)
+            if(agent.n_games >= 5 ):
+                plot_metrics(scores, rewards, epsilons)
+
+            game.reset()
             action = 1
+            old_score = 0
+            score = 0
+            done = False 
+
+            total_reward = 0
+            total_score_reward = 0
+            total_moving_to_apple = 0
+            total_survive_duration_reward = 0
+            
         # game.print_board()
 
         # Update display
-        if(agent.n_games > 100 and agent.n_games % 20 == 0):
+        if(agent.n_games >= 50 and agent.n_games % 10 == 0):
             display.update(game)
         #time.sleep(0.5)
 
@@ -83,3 +99,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    #main()

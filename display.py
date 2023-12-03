@@ -43,6 +43,6 @@ class Display:
                     self._draw_block(j, i, WHITE)
                 elif self.grid[i][j] == 2:
                     self._draw_block(j, i, GREEN)
-                elif self.grid[i][j] == 3:
+                elif self.grid[i][j] == 10:
                     self._draw_block(j, i, RED)
         pygame.display.flip()

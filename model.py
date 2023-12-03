@@ -5,15 +5,18 @@ import torch.nn.functional as F
 import os
 
 class Linear_QNet(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, hidden_size, output_size, dropout_p=0.5):
         super().__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
+        self.dropout = nn.Dropout(dropout_p)
         self.linear2 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         x = F.relu(self.linear1(x))
+        x = self.dropout(x)  # Adding dropout here
         x = self.linear2(x)
         return x
+
 
     def save(self, file_name='model.pth'):
         model_folder_path = './model'
@@ -59,8 +62,6 @@ class QTrainer:
             target[idx][torch.argmax(action[idx]).item()] = Q_new
     
         # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not done
-        # pred.clone()
-        # preds[argmax(action)] = Q_new
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
         loss.backward()

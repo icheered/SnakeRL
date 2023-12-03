@@ -10,9 +10,11 @@ class Game:
         self.score = 0
 
         self.frame = 0
+        self.frames_without_food = 0
 
     def reset(self):
         self.frame = 0
+        self.frames_without_food = 0
         self.score = 0
         self.board = np.zeros((self.width, self.height))
         
@@ -37,7 +39,7 @@ class Game:
         food = empty_cells[np.random.choice(empty_cells.shape[0])]
 
         # Place the food
-        self.board[food[0], food[1]] = 3
+        self.board[food[0], food[1]] = 10
 
     def _move(self, action) -> (int, bool):
         # Action: 0 -> up, 1 -> right, 2 -> down, 3 -> left
@@ -69,14 +71,20 @@ class Game:
 
         # Check if the snake ate food
         ate_food = False
-        if self.board[new_head] == 3:
+        if self.board[new_head] == 10:
             # Snake ate food
             ate_food = True
+            self.frames_without_food = 0
             self._place_food()
         else:
             # Remove the tail
+            self.frames_without_food += 1
             self.board[self.snake[0]] = 0
             self.snake.pop(0)
+        
+        if(self.frames_without_food > 400):
+            print("Snake starved to death")
+            return 0, True
 
         # Add the new head
         self.board[self.snake[-1]] = 1
@@ -88,26 +96,21 @@ class Game:
 
         return int(ate_food), False
     
-    def get_invalid_move(self):
+    def get_direction(self):
         # Find the current direction based on the head and the previous segment
         head = self.snake[-1]
         previous_segment = self.snake[-2]
         direction = (head[0] - previous_segment[0], head[1] - previous_segment[1])
         
-
-        # Find the backwards direction
+        # Find the direction
         if direction == (0, 1):
-            #print("Currently going: right")
-            return 3
-        elif direction == (0, -1):
-            #print("Currently going: left")
             return 1
+        elif direction == (0, -1):
+            return 3
         elif direction == (1, 0):
-            #print("Currently going: down")
-            return 0
-        elif direction == (-1, 0):
-            #print("Currently going: up")
             return 2
+        elif direction == (-1, 0):
+            return 0
     
     def moving_to_apple(self):
         # Check the head and second segment
@@ -116,17 +119,23 @@ class Game:
         # Otherwise, return 0
         head = self.snake[-1]
         second_segment = self.snake[-2]
-        apple = np.argwhere(self.board == 3)[0]
+        apple = np.argwhere(self.board == 10)[0]
 
         head_distance = abs(head[0] - apple[0]) + abs(head[1] - apple[1])
         second_segment_distance = abs(second_segment[0] - apple[0]) + abs(second_segment[1] - apple[1])
 
         if head_distance < second_segment_distance:
-            return 1
+            return 2
         elif head_distance > second_segment_distance:
             return -1
         else:
             return 0
+    
+    def distance_to_apple(self):
+        head = self.snake[-1]
+        apple = np.argwhere(self.board == 10)[0]
+
+        return abs(head[0] - apple[0]) + abs(head[1] - apple[1])
 
     def print_board(self):
         print(" " + "_" * (self.width))
@@ -139,7 +148,7 @@ class Game:
                     print("o", end="")
                 elif cell == 2:
                     print("H", end="")
-                elif cell == 3:
+                elif cell == 10:
                     print("*", end="")
             print("|", end="")
             print()
@@ -159,10 +168,6 @@ class Game:
         if ate_food:
             self.score += 1
         
+        #print(f"Frame: {self.frame}, Score: {self.score}, Frames without food: {self.frames_without_food}")
+        
         return self.score, done
-    
-test = [
-    [1, 2, 3],
-    [2, 2, 2, 2, 2],
-    [5,4]
-]

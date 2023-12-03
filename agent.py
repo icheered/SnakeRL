@@ -3,50 +3,49 @@ import random
 import numpy as np
 from collections import deque
 from model import Linear_QNet, QTrainer
+import time
 
 MAX_MEMORY = 100_000
-BATCH_SIZE = 1000
+BATCH_SIZE = 264
 LR = 0.001  # learning rate
 
 class Agent:
     def __init__(self, game):
         self.n_games = 0
         self.epsilon = 0 # randomness
-        self.gamma = 0.9 # discount rate
+        self.gamma = 0.95 # discount rate
         self.memory = deque(maxlen=MAX_MEMORY) # popleft()
-        self.model = Linear_QNet(game.width * game.height, 256, 4)
+        self.model = Linear_QNet(game.width * game.height, 256, 3)
         self.trainer = QTrainer(self.model, lr=LR, gamma=self.gamma)
         pass
 
-    def get_action(self, game, previous_move):
+    def get_action(self, game):
         # Flatten board
         state = np.array(game.get_state(), dtype=np.float32).flatten()
-        invalid_move = game.get_invalid_move()
 
         # random moves: tradeoff exploration / exploitation
-        self.epsilon = 100 - min(self.n_games/10, 80)
-        move = previous_move
+        self.epsilon = 100 - (self.n_games/5)
+        move = 0
         if random.randint(0, 200) < self.epsilon:
-            move = random.randint(0, 3)
+            move = random.randint(0, 2)
         else:
             state0 = torch.tensor(state, dtype=torch.float)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
         
-        #print(f"Previous: {previous_move}, Current: {move}")
-        if move == invalid_move:
-            move = previous_move
-
-        return move
+        # 0 = left, 1 = forward, 2 = right. Translate to 0 = up, 1 = right, 2 = down, 3= left
+        direction = game.get_direction()
+        return (direction + move - 1) % 4
 
     def get_reward(self, score, old_score, done, game):
         if(done):
-            return -20
-        score_reward = (score - old_score) * 30
-        moving_to_apple = game.moving_to_apple()
-        survive_duration_reward = game.frame * 0.2
+            return -30, 0, 0
+        score_reward = (score - old_score) * 70
+        distance_to_apple = game.distance_to_apple()
+        moving_to_apple = game.moving_to_apple()  + distance_to_apple * -0.05
+        survive_duration_reward = game.frames_without_food * -0.001
 
-        return score_reward + moving_to_apple + survive_duration_reward
+        return score_reward, moving_to_apple, survive_duration_reward
 
     def train_long_memory(self):
         if len(self.memory) > BATCH_SIZE:
