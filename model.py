@@ -3,20 +3,22 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import os
+import numpy as np
 
 class Linear_QNet(nn.Module):
     def __init__(self, input_size, hidden_size, output_size, dropout_p=0.5):
         super().__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, hidden_size)  # Additional hidden layer
         self.dropout = nn.Dropout(dropout_p)
-        self.linear2 = nn.Linear(hidden_size, output_size)
+        self.linear3 = nn.Linear(hidden_size, output_size)
 
     def forward(self, x):
         x = F.relu(self.linear1(x))
-        x = self.dropout(x)  # Adding dropout here
-        x = self.linear2(x)
+        x = F.relu(self.linear2(x))  # Applying ReLU to the additional hidden layer
+        x = self.dropout(x)
+        x = self.linear3(x)
         return x
-
 
     def save(self, file_name='model.pth'):
         model_folder_path = './model'
@@ -25,6 +27,7 @@ class Linear_QNet(nn.Module):
 
         file_name = os.path.join(model_folder_path, file_name)
         torch.save(self.state_dict(), file_name)
+
 
 
 class QTrainer:
@@ -36,6 +39,7 @@ class QTrainer:
         self.criterion = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, done):
+        state = np.array(state)
         state = torch.tensor(state, dtype=torch.float)
         next_state = torch.tensor(next_state, dtype=torch.float)
         action = torch.tensor(action, dtype=torch.long)

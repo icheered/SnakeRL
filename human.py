@@ -16,4 +16,3 @@ def get_human_action(action):
                 action = 3
                 
     return action
-                

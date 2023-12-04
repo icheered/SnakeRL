@@ -12,7 +12,7 @@ font = pygame.font.Font("arial.ttf", 25)
 
 class Display:
     def __init__(self, game, blocksize, title):
-        self.grid = game.get_state()
+        self.grid = game.get_grid()
         self.blocksize = blocksize
         self.width = len(self.grid[0]) * blocksize
         self.height = len(self.grid) * blocksize
@@ -34,7 +34,7 @@ class Display:
         )
 
     def update(self, game):
-        self.grid = game.get_state()
+        self.grid = game.get_grid()
         self.clock.tick(60)
         self.screen.fill(BLACK)
         for i in range(len(self.grid)):

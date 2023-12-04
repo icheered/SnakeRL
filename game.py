@@ -18,8 +18,11 @@ class Game:
         self.score = 0
         self.board = np.zeros((self.width, self.height))
         
-        mid_x = self.width // 2
-        mid_y = self.height // 2
+        #mid_x = self.width // 2
+        #mid_y = self.height // 2
+        # Pick a location at least 3 squares from the edge
+        mid_x = np.random.randint(3, self.width - 3)
+        mid_y = np.random.randint(3, self.height - 3)
         self.snake = [(mid_y, mid_x - 1), (mid_y, mid_x), (mid_y, mid_x + 1)]
 
         # Place the snake on the board
@@ -154,8 +157,37 @@ class Game:
             print()
         print(" " + "_" * (self.width))
 
-    def get_state(self):
+    def get_danger(self):
+        # Check if there is a wall or snake segment in each direction
+        # Return a list of 4 booleans
+        # [up, right, down, left]
+        head = self.snake[-1]
+        danger = [False, False, False, False]
+
+        # Up
+        if head[0] == 0 or (head[0] - 1, head[1]) in self.snake:
+            danger[0] = True
+
+        # Right
+        if head[1] == self.width - 1 or (head[0], head[1] + 1) in self.snake:
+            danger[1] = True
+
+        # Down
+        if head[0] == self.height - 1 or (head[0] + 1, head[1]) in self.snake:
+            danger[2] = True
+
+        # Left
+        if head[1] == 0 or (head[0], head[1] - 1) in self.snake:
+            danger[3] = True
+
+        return danger
+
+    def get_grid(self):
         return self.board
+    
+    def get_state(self):
+        danger = self.get_danger()
+        return np.array(self.board, dtype=np.float32).flatten().tolist() + danger
     
     def step(self, action):
         # Action: 0 -> up, 1 -> right, 2 -> down, 3 -> left

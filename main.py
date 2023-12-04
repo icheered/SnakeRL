@@ -36,7 +36,7 @@ def main():
         old_score = score
 
         # Get input
-        # action = get_human_input(action)
+        #action = get_human_action(action)
         action = agent.get_action(game)
         
         # Update game
@@ -44,20 +44,21 @@ def main():
 
         # Train agent
         score_reward, moving_to_apple, survive_duration_reward = agent.get_reward(score, old_score, done, game)
-        reward = score_reward + moving_to_apple + survive_duration_reward
+        reward = round(score_reward + moving_to_apple + survive_duration_reward,2)
         #print(f"reward: {reward}, score_reward: {score_reward}, moving_to_apple: {moving_to_apple}, survive_duration_reward: {survive_duration_reward}")
-        
+        #print(f"reward: {reward}, score_reward: {score_reward}, moving_to_apple: {moving_to_apple}, survive_duration_reward: {survive_duration_reward}")
         
         total_reward += reward
         total_score_reward += score_reward
         total_moving_to_apple += moving_to_apple
         total_survive_duration_reward += survive_duration_reward
+        
         agent.train_short_memory(old_state, action, reward, game.get_state(), done)
         agent.remember(old_state, action, reward, game.get_state(), done)
 
         if done:
             # train long memory, plot result
-            print(f"####### GAME: {agent.n_games}. SCORE: {score}. TOTAL REWARD: {total_reward} #######")
+            print(f"####### GAME: {agent.n_games}. SCORE: {score}. TOTAL REWARD: {round(total_reward)} #######")
             agent.n_games += 1
             agent.train_long_memory()
 
@@ -73,7 +74,9 @@ def main():
             ) 
             
             epsilons.append(agent.epsilon)
-            if(agent.n_games >= 5 ):
+            
+            if(agent.n_games % 50 == 0):
+            #if(agent.n_games > 5):
                 plot_metrics(scores, rewards, epsilons)
 
             game.reset()
@@ -90,9 +93,9 @@ def main():
         # game.print_board()
 
         # Update display
-        if(agent.n_games >= 50 and agent.n_games % 10 == 0):
+        if(agent.n_games % 50 == 0):
             display.update(game)
-        #time.sleep(0.5)
+            time.sleep(0.1)
 
     pass
 
