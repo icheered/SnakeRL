@@ -1,0 +1,8 @@
+display:
+  width: 800
+  height: 900
+  update_frequency: 60
+
+game:
+  width: 10
+  height: 10

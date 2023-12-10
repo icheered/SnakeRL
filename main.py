@@ -1,105 +1,110 @@
-from game import Game
-from display import Display
-from human import get_human_action
-from agent import Agent
-from plot import plot_metrics
-import time
-import numpy as np
+import os
+import datetime 
 
-actions = ["UP", "RIGHT", "DOWN", "LEFT"]
+import torch
+from stable_baselines3 import A2C, DQN, HER, PPO
+from stable_baselines3.common.vec_env import DummyVecEnv
+from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.logger import configure
+from stable_baselines3.common.env_checker import check_env
+from stable_baselines3.common.callbacks import BaseCallback, EvalCallback, StopTrainingOnRewardThreshold
 
-def main():
-    game = Game(w=10, h=10)
-    game.reset()
-    display = Display(game, blocksize=20, title="Snake")
-    
-    action = 1
-    score = 0
-    done = False
+from src.snake_env import SnakeEnv
+from src.utils import read_config
+from src.monitor import Monitor
+from src.logger_callback import LoggerCallback
+from src.human import Human
 
-    scores = []
-    total_score = 0
-    record = 0
-    
-    rewards = []
-    total_reward = 0
-    total_score_reward = 0
-    total_moving_to_apple = 0
-    total_survive_duration_reward = 0
-    epsilons = []
-    
-    agent = Agent(game)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Using device: {}".format(device))
 
-    while True:
-        # Get state
-        old_state = game.get_state()
-        old_score = score
+# Read config and set up tensorboard logging
+config = read_config("config.yaml")
+save_path = os.path.join('training', 'saved_models')
+log_path = os.path.join('training', 'logs')
+logger = configure(log_path, ["stdout", "tensorboard"])
 
-        # Get input
-        #action = get_human_action(action)
-        action = agent.get_action(game)
+# CONTROL THE PROGRAM FLOW
+show_env = False
+import_last_best_model = True
+train_model = True
+evaluate_model = False
+
+
+if show_env:
+    # SHOW THE ENVIRONMENT FOR DEBUGGING
+    env = SnakeEnv(config, render_mode="human", max_episode_steps=1000)
+    episodes = 5
+    for episode in range(1, episodes+1):
+        state = env.reset() # Get initial set of observations
+        done = False
+        score = 0 
         
-        # Update game
-        score, done = game.step(action)
+        while not done:
+            env.render()
+            action = env.action_space.sample() # Take a random action from the action space
+            n_state, reward, done, _, info =  env.step(action) # Get new set of observations
+            score+=reward
+        print('Episode:{} Score:{}'.format(episode, round(score,2)))
+    env.close()
 
-        # Train agent
-        score_reward, moving_to_apple, survive_duration_reward = agent.get_reward(score, old_score, done, game)
-        reward = round(score_reward + moving_to_apple + survive_duration_reward,2)
-        #print(f"reward: {reward}, score_reward: {score_reward}, moving_to_apple: {moving_to_apple}, survive_duration_reward: {survive_duration_reward}")
-        #print(f"reward: {reward}, score_reward: {score_reward}, moving_to_apple: {moving_to_apple}, survive_duration_reward: {survive_duration_reward}")
-        
-        total_reward += reward
-        total_score_reward += score_reward
-        total_moving_to_apple += moving_to_apple
-        total_survive_duration_reward += survive_duration_reward
-        
-        agent.train_short_memory(old_state, action, reward, game.get_state(), done)
-        agent.remember(old_state, action, reward, game.get_state(), done)
+if train_model:
+    # TRAIN THE MODEL
+    num_envs = 1 # Number of parallel environments
+    reward_threshold = 10000  # Stop training if the mean reward is greater or equal to this value
+    max_episode_steps = 1000  # Max number of steps per episode
+    total_timesteps = 1000000  # Total number of training steps (ie: environment steps)
+    model_type = "DQN"
 
-        if done:
-            # train long memory, plot result
-            print(f"####### GAME: {agent.n_games}. SCORE: {score}. TOTAL REWARD: {round(total_reward)} #######")
-            agent.n_games += 1
-            agent.train_long_memory()
+    env_fns = [lambda: SnakeEnv(config, max_episode_steps=1000) for _ in range(num_envs)]
+    env = DummyVecEnv(env_fns)
+    check_env(env.envs[0], warn=True)  # Check if the environment is valid
 
-            if score > record:
-                record = score
-                agent.model.save()
+    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=reward_threshold, verbose=1)
+    eval_callback = EvalCallback(env, 
+                                callback_on_new_best=stop_callback, 
+                                eval_freq=1000, 
+                                best_model_save_path=save_path, 
+                                verbose=1)
 
-            scores.append(score)
-            total_score += score
+    # Monitor handles the plotting of reward and survive time during training
+    monitor = Monitor(config)
+    monitor.update_plot()
+    logger = LoggerCallback(monitor=monitor)
 
-            rewards.append(
-                [total_reward, total_score_reward, total_moving_to_apple, total_survive_duration_reward]
-            ) 
-            
-            epsilons.append(agent.epsilon)
-            
-            if(agent.n_games % 50 == 0):
-            #if(agent.n_games > 5):
-                plot_metrics(scores, rewards, epsilons)
+    callbacks = [eval_callback, logger]
 
-            game.reset()
-            action = 1
-            old_score = 0
-            score = 0
-            done = False 
+    # Create the model
+    model = None
+    # Switch for model type
+    if model_type == "PPO":
+        model = PPO("MlpPolicy", env, verbose=1, tensorboard_log=log_path)
+    elif model_type == "A2C":
+        model = A2C("MlpPolicy", env, verbose=1, tensorboard_log=log_path)
+    elif model_type == "DQN":
+        model = DQN("MlpPolicy", env, verbose=1, tensorboard_log=log_path)
+    elif model_type == "HER":
+        model = HER("MlpPolicy", env, verbose=1, tensorboard_log=log_path)
+    else:
+        raise ValueError("Model type not specified")
 
-            total_reward = 0
-            total_score_reward = 0
-            total_moving_to_apple = 0
-            total_survive_duration_reward = 0
-            
-        # game.print_board()
-
-        # Update display
-        if(agent.n_games % 50 == 0):
-            display.update(game)
-            time.sleep(0.1)
-
-    pass
+    # Do the actual learning
+    try:
+        model.learn(total_timesteps=total_timesteps, progress_bar=True, callback=callbacks)
+    except KeyboardInterrupt:
+        print("Keyboard interrupt detected, exiting training loop")
+    
+    # SAVE THE MODEL TO DISK
+    savefilename = os.path.join(save_path, model_type + "_" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    model.save(savefilename)
+    print("Model saved to {}".format(savefilename))
 
 
-if __name__ == "__main__":
-    main()
-    #main()
+if evaluate_model:
+    # EVALUATE THE MODEL
+    filename = "PPO_Beast_1m"
+
+    env = SnakeEnv(config, render_mode="human", max_episode_steps=5000)
+    model = PPO.load(os.path.join('training', 'saved_models', filename), env=env)
+    evaluate_policy(model, env, n_eval_episodes=5, render=True)
+    env.close()
